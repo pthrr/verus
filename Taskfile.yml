@@ -1,0 +1,121 @@
+version: '3'
+
+vars:
+  VERUS_ROOT: "{{.ROOT_DIR}}"
+  VERUS_Z3_PATH: "{{.ROOT_DIR}}/source/z3"
+  TARGET: "{{default \"aarch64-unknown-none\" .TARGET}}"
+  BUILD_TYPE: "{{default \"release\" .BUILD_TYPE}}"
+  CARGO_BUILD_FLAG: '{{if eq .BUILD_TYPE "release"}}--release{{end}}'
+
+tasks:
+  check-toolchain:
+    cmds:
+      - |
+        if ! rustup target list --installed | grep -q "{{.TARGET}}"; then
+          echo "Error: Rust target '{{.TARGET}}' is not installed"
+          echo "Please run: rustup target add {{.TARGET}}"
+          exit 1
+        fi
+
+  setup-z3:
+    dir: source
+    cmds:
+      - ./tools/get-z3.sh
+    status:
+      - test -f z3
+
+  build-verus:
+    dir: source
+    deps: [setup-z3]
+    cmds:
+      - echo "Building Verus with {{.BUILD_TYPE}} profile..."
+      - bash -c "export VERUS_ROOT={{.VERUS_ROOT}} && export VERUS_Z3_PATH={{.VERUS_Z3_PATH}} && source ../tools/activate && vargo build {{.CARGO_BUILD_FLAG}}"
+
+  build-verus-debug:
+    cmds:
+      - task: build-verus
+        vars: {BUILD_TYPE: "debug"}
+
+  build-verus-release:
+    cmds:
+      - task: build-verus
+        vars: {BUILD_TYPE: "release"}
+
+  build-builtin:
+    dir: source/builtin
+    deps: [check-toolchain]
+    cmds:
+      - cargo build --target={{.TARGET}} {{.CARGO_BUILD_FLAG}}
+    sources:
+      - src/**/*.rs
+      - Cargo.toml
+    generates:
+      - ../target/{{.TARGET}}/{{.BUILD_TYPE}}/libverus_builtin.rlib
+
+  build-vstd:
+    dir: source/vstd
+    deps: [build-builtin]
+    cmds:
+      - cargo build --target={{.TARGET}} {{.CARGO_BUILD_FLAG}} --no-default-features
+    sources:
+      - "**/*.rs"
+      - Cargo.toml
+    generates:
+      - target/{{.TARGET}}/{{.BUILD_TYPE}}/libvstd.rlib
+
+  build-libs:
+    deps: [build-builtin, build-vstd]
+
+  build-libs-aarch64:
+    deps: [check-toolchain]
+    cmds:
+      - task: build-libs
+        vars: {TARGET: "aarch64-unknown-none"}
+
+  build-libs-riscv64:
+    deps: [check-toolchain]
+    cmds:
+      - task: build-libs
+        vars: {TARGET: "riscv64gc-unknown-none-elf"}
+
+  build-libs-x86_64:
+    deps: [check-toolchain]
+    cmds:
+      - task: build-libs
+        vars: {TARGET: "x86_64-unknown-linux-gnu"}
+
+  build-libs-all:
+    cmds:
+      - task: build-libs-aarch64
+      - task: build-libs-riscv64
+
+  build-all:
+    cmds:
+      - task: build-verus-release
+      - task: build-libs-all
+
+  info:
+    cmds:
+      - echo "Target = {{.TARGET}}"
+      - echo "Build type = {{.BUILD_TYPE}}"
+      - echo ""
+      - echo "verus_builtin will be at:"
+      - echo "  source/target/{{.TARGET}}/{{.BUILD_TYPE}}/libverus_builtin.rlib"
+      - echo ""
+      - echo "vstd will be at:"
+      - echo "  source/vstd/target/{{.TARGET}}/{{.BUILD_TYPE}}/libvstd.rlib"
+      - echo ""
+      - echo "Reference these in your RUSTFLAGS with:"
+      - echo "  -L $HOME/opt/verus/source/target/{{.TARGET}}/{{.BUILD_TYPE}}"
+      - echo "  -L $HOME/opt/verus/source/vstd/target/{{.TARGET}}/{{.BUILD_TYPE}}"
+
+  clean:
+    cmds:
+      - rm -rf source/target/
+      - rm -rf source/vstd/target/
+      - rm -rf source/builtin/target/
+      - rm -rf source/target-verus/
+
+  default:
+    cmds:
+      - task: build-all
