@@ -1,0 +1,25 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "verus_syn",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "@crates//:proc-macro2",
+        "@crates//:quote",
+        "@crates//:unicode-ident",
+    ],
+    crate_features = [
+        "full",
+        "parsing",
+        "printing",
+        "derive",
+        "clone-impls",
+        "proc-macro",
+        "visit",
+        "visit-mut",
+        "extra-traits",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,56 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_proc_macro")
+
+rust_library(
+    name = "verus_builtin",
+    srcs = ["source/builtin/src/lib.rs"],
+    crate_root = "source/builtin/src/lib.rs",
+    edition = "2018",
+    rustc_flags = ["-C", "relocation-model=static"],
+    visibility = ["//visibility:public"],
+)
+
+rust_proc_macro(
+    name = "verus_builtin_macros",
+    srcs = glob(["source/builtin_macros/src/**/*.rs"]),
+    crate_root = "source/builtin_macros/src/lib.rs",
+    edition = "2018",
+    deps = [
+        "@crates//:proc-macro2",
+        "@crates//:quote",
+        "@crates//:syn",
+        "@crates//:synstructure",
+        "//dependencies/syn:verus_syn",
+        "//dependencies/prettyplease:verus_prettyplease",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+rust_proc_macro(
+    name = "verus_state_machines_macros",
+    srcs = glob(["source/state_machines_macros/src/**/*.rs"]),
+    crate_root = "source/state_machines_macros/src/lib.rs",
+    edition = "2018",
+    deps = [
+        "@crates//:proc-macro2",
+        "@crates//:quote",
+        "@crates//:indexmap",
+        "//dependencies/syn:verus_syn",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+rust_library(
+    name = "vstd",
+    srcs = glob(["source/vstd/**/*.rs"], exclude=["source/vstd/build.rs"]),
+    crate_root = "source/vstd/vstd.rs",
+    edition = "2021",
+    proc_macro_deps = [
+        ":verus_builtin_macros",
+        ":verus_state_machines_macros",
+    ],
+    deps = [":verus_builtin"],
+    rustc_flags = ["-C", "relocation-model=static"],
+    rustc_env = {"RUST_MIN_STACK": "10485760"},
+    crate_features = [],
+    visibility = ["//visibility:public"],
+)

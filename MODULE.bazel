@@ -1,0 +1,16 @@
+module(
+    name = "verus",
+    version = "0.0.0-2025-12-14-0054",
+)
+
+bazel_dep(name = "rules_rust", version = "0.56.0")
+
+crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate", isolate = True)
+crate.spec(package = "proc-macro2", features = ["span-locations"], version = "1.0")
+crate.spec(package = "quote", version = "1.0")
+crate.spec(package = "syn", features = ["full", "parsing", "printing", "derive", "clone-impls", "proc-macro", "visit", "visit-mut"], version = "2.0")
+crate.spec(package = "unicode-ident", version = "1")
+crate.spec(package = "synstructure", version = "0.13.2")
+crate.spec(package = "indexmap", version = "1.9")
+crate.from_specs()
+use_repo(crate, "crates")

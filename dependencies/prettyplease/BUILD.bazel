@@ -1,0 +1,13 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "verus_prettyplease",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = [
+        "@crates//:proc-macro2",
+        "//dependencies/syn:verus_syn",
+    ],
+    visibility = ["//visibility:public"],
+)
