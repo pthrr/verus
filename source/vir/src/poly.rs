@@ -68,11 +68,20 @@ Note that the latter two cases lead to triggers involving "Unbox(x)", not just x
 This can lead to the completeness problems of (3).
 Therefore, the expression Unbox(Box(1)) explicitly introduces a superfluous Unbox to handle (3).
 
-Note: in some cases, we can also support int quantifier variables x,
-for the purpose of triggering on arithmetic expressions,
-as long as *all* the expressions in all the triggers use x for arithmetic.
-For example, #[trigger] g(f(x), x + 1) would not be allowed,
-because x is used both for f and for +.
+For triggers on arithmetic expressions like #[trigger] (x * y),
+we use int instead of Poly for the arithmetic variables in the trigger.
+(This is an exception to the table above.)
+Otherwise, an expression like 3 * 4 would fail to match the trigger (Unbox(x) * Unbox(y)).
+
+Note that if a variable x is used *both* as a function argument and an arithmetic argument,
+as in #[trigger] g(f(x), x + 1), we have more flexibility, because any term passed to both
+the function and the arithmetic must be boxed or unboxed in one or the other.
+For example, in g(f(3), 3 + 1) would be represented as g(f(Box(3)), Box(3 + 1)),
+so that Box(3) triggers the unbox-box axiom yielding Unbox(Box(3)) = 3.
+In this case, a trigger of g(f(x), Unbox(x) + 1) for x: Poly e-matches the expanded term
+g(f(Box(3)), Box(Unbox(Box(3)) + 1)).
+We take advantage of this to support mixed function-arithmetic triggers with Poly variables
+(native variables would also work if we wanted, relying on Box(Unbox(x)) axioms.)
 */
 
 use crate::ast::{
@@ -564,7 +573,7 @@ fn visit_exp(ctx: &Ctx, state: &mut State, exp: &Exp) -> Exp {
                     let e1 = coerce_exp_to_poly(ctx, &e1);
                     mk_exp(ExpX::Unary(*op, e1))
                 }
-                UnaryOp::HeightTrigger => {
+                UnaryOp::HeightTrigger | UnaryOp::Length(_) => {
                     let e1 = coerce_exp_to_poly(ctx, &e1);
                     mk_exp(ExpX::Unary(*op, e1))
                 }
@@ -638,13 +647,13 @@ fn visit_exp(ctx: &Ctx, state: &mut State, exp: &Exp) -> Exp {
                 }
             }
         }
-        ExpX::Binary(BinaryOp::ArrayIndex, e1, e2) => {
+        ExpX::Binary(BinaryOp::Index(kind, bc), e1, e2) => {
             let e1 = visit_exp(ctx, state, e1);
             let e2 = visit_exp(ctx, state, e2);
             let e1 = coerce_exp_to_native(ctx, &e1);
             let e2 = coerce_exp_to_poly(ctx, &e2);
             let typ = coerce_typ_to_poly(ctx, &exp.typ);
-            mk_exp_typ(&typ, ExpX::Binary(BinaryOp::ArrayIndex, e1, e2))
+            mk_exp_typ(&typ, ExpX::Binary(BinaryOp::Index(*kind, *bc), e1, e2))
         }
         ExpX::Binary(op, e1, e2) => {
             let e1 = visit_exp(ctx, state, e1);
@@ -658,7 +667,7 @@ fn visit_exp(ctx: &Ctx, state: &mut State, exp: &Exp) -> Exp {
                 BinaryOp::Eq(_) | BinaryOp::Ne => (false, false),
                 BinaryOp::Bitwise(..) => (true, false),
                 BinaryOp::StrGetChar { .. } => (true, false),
-                BinaryOp::ArrayIndex => unreachable!("ArrayIndex"),
+                BinaryOp::Index(..) => unreachable!("Index"),
             };
             if native {
                 let e1 = coerce_exp_to_native(ctx, &e1);
